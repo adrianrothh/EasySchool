@@ -118,30 +118,6 @@ O sistema mantém histórico completo das ações realizadas e registros de audi
 - Registro de tentativas de acesso não autorizado.
 
 ---
-s
-## Estrutura Inicial do Projeto
-
-```text
-EasySchool/
-│
-├── frontend/
-│   ├── src/
-│   ├── public/
-│   └── package.json
-│
-├── backend/
-│   ├── src/
-│   ├── pom.xml
-│   └── application.properties
-│
-├── docs/
-│
-├── .gitignore
-├── README.md
-└── .env.example
-```
-
----
 
 ## Status do Projeto
 
