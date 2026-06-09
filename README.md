@@ -44,8 +44,8 @@ O sistema mantém histórico completo das ações realizadas e registros de audi
 - Git
 - GitHub
 - Maven
-- JWT (planejado)
-- BCrypt (planejado)
+- JWT
+- BCrypt
 
 ---
 
