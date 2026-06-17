@@ -1,0 +1,40 @@
+package _ErrorClub.example.demo.entity;
+
+import jakarta.persistence.*;
+import lombok.Data;
+import java.time.OffsetDateTime;
+import java.util.UUID;
+
+@Entity
+@Data
+@Table(name  = "users")
+public class User {
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(nullable = false, updatable = false)
+    private UUID id;
+
+    private String nome;
+
+    private String email;
+
+    private String cpf;
+
+    private String password;
+
+    private String totpSecretHash;
+
+    private boolean totpActivate = false;
+
+    private UUID profileId;
+
+    private boolean activate = true;
+
+    private short loginAttempt = 0;
+
+    private OffsetDateTime blockedTo;
+
+    private OffsetDateTime createdAt;
+
+    private OffsetDateTime updatedAt;
+}
