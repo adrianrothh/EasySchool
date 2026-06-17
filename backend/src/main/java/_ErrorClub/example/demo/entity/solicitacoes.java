@@ -2,40 +2,36 @@ package _ErrorClub.example.demo.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
 @Data
-@Table(name  = "users")
-public class User {
+@Table(name = "solicitacoes")
+public class Solicitacao {
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(nullable = false, updatable = false)
     private UUID id;
 
-    private String name;
+    private UUID alunoId;
 
-    private String email;
+    private UUID professorId;
 
-    private String cpf;
+    private String descricao;
 
-    private String password;
+    private LocalDate dataOcorrencia;
 
-    private String totpSecretHash;
+    private String tipo;
 
-    private boolean totpActivate = false;
+    private String status;
 
-    private UUID profileId;
-
-    private boolean activate = true;
-
-    private short loginAttempt = 0;
-
-    private OffsetDateTime blockedTo;
+    private String disciplina;
 
     private OffsetDateTime createdAt;
 
     private OffsetDateTime updatedAt;
 }
-
