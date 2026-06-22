@@ -1,6 +1,4 @@
-import { logsMock } from "../data/mockData";
-
-function Logs({ usuario }) {
+function Logs({ usuario, logs }) {
   if (usuario.perfil !== "ADMIN") {
     return (
       <div>
@@ -14,27 +12,35 @@ function Logs({ usuario }) {
     <div>
       <h1>Logs de auditoria</h1>
 
-      <table border="1" cellPadding="8">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Usuário</th>
-            <th>Ação</th>
-            <th>Data</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {logsMock.map((log) => (
-            <tr key={log.id}>
-              <td>{log.id}</td>
-              <td>{log.usuario}</td>
-              <td>{log.acao}</td>
-              <td>{log.data}</td>
+      {logs.length === 0 ? (
+        <p>Nenhum log registrado.</p>
+      ) : (
+        <table border="1" cellPadding="8">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Usuário</th>
+              <th>Evento</th>
+              <th>Recurso</th>
+              <th>Detalhe</th>
+              <th>Data</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+
+          <tbody>
+            {logs.map((log) => (
+              <tr key={log.id}>
+                <td>{log.id}</td>
+                <td>{log.usuario}</td>
+                <td>{log.evento}</td>
+                <td>{log.recursoTipo}</td>
+                <td>{log.detalhe}</td>
+                <td>{log.createdAt}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

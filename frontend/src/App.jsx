@@ -16,6 +16,16 @@ function App() {
     return usuarioSalvo ? JSON.parse(usuarioSalvo) : null;
   });
 
+  const [solicitacoes, setSolicitacoes] = useState(() => {
+    const dados = localStorage.getItem("solicitacoes");
+    return dados ? JSON.parse(dados) : [];
+  });
+
+  const [logs, setLogs] = useState(() => {
+    const dados = localStorage.getItem("logs");
+    return dados ? JSON.parse(dados) : [];
+  });
+
   function login(perfil) {
     const dadosUsuario = {
       nome:
@@ -42,6 +52,69 @@ function App() {
     localStorage.removeItem("usuario");
     setUsuario(null);
     navigate("/login");
+  }
+
+  function registrarLog(evento, detalhe, recursoTipo = "-", recursoId = "-") {
+    const novoLog = {
+      id: crypto.randomUUID(),
+      usuario: usuario?.email || "sistema",
+      evento,
+      detalhe,
+      recursoTipo,
+      recursoId,
+      createdAt: new Date().toLocaleString("pt-BR"),
+    };
+
+    const novosLogs = [novoLog, ...logs];
+
+    setLogs(novosLogs);
+    localStorage.setItem("logs", JSON.stringify(novosLogs));
+  }
+
+  function criarSolicitacao(dados) {
+    const novaSolicitacao = {
+      id: crypto.randomUUID(),
+      alunoEmail: usuario.email,
+      alunoNome: usuario.nome,
+      tipo: dados.tipo,
+      disciplina: dados.disciplina,
+      descricao: dados.descricao,
+      dataOcorrencia: dados.dataOcorrencia,
+      status: "PENDENTE",
+      createdAt: new Date().toLocaleString("pt-BR"),
+    };
+
+    const novasSolicitacoes = [novaSolicitacao, ...solicitacoes];
+
+    setSolicitacoes(novasSolicitacoes);
+    localStorage.setItem("solicitacoes", JSON.stringify(novasSolicitacoes));
+
+    registrarLog(
+      "CRIACAO_SOLICITACAO",
+      "Aluno criou uma nova solicitação.",
+      "SOLICITACAO",
+      novaSolicitacao.id,
+    );
+  }
+
+  function alterarStatus(id, novoStatus) {
+    const novasSolicitacoes = solicitacoes.map((solicitacao) =>
+      solicitacao.id === id
+        ? { ...solicitacao, status: novoStatus }
+        : solicitacao,
+    );
+
+    setSolicitacoes(novasSolicitacoes);
+    localStorage.setItem("solicitacoes", JSON.stringify(novasSolicitacoes));
+
+    registrarLog(
+      novoStatus === "APROVADA"
+        ? "APROVACAO_SOLICITACAO"
+        : "REPROVACAO_SOLICITACAO",
+      `Solicitação ${novoStatus.toLowerCase()}.`,
+      "SOLICITACAO",
+      id,
+    );
   }
 
   function protegerPagina(pagina) {
@@ -72,17 +145,28 @@ function App() {
 
       <Route
         path="/solicitacoes"
-        element={protegerPagina(<Solicitacoes usuario={usuario} />)}
+        element={protegerPagina(
+          <Solicitacoes
+            usuario={usuario}
+            solicitacoes={solicitacoes}
+            alterarStatus={alterarStatus}
+          />,
+        )}
       />
 
       <Route
         path="/solicitacoes/nova"
-        element={protegerPagina(<NovaSolicitacao usuario={usuario} />)}
+        element={protegerPagina(
+          <NovaSolicitacao
+            usuario={usuario}
+            criarSolicitacao={criarSolicitacao}
+          />,
+        )}
       />
 
       <Route
         path="/logs"
-        element={protegerPagina(<Logs usuario={usuario} />)}
+        element={protegerPagina(<Logs usuario={usuario} logs={logs} />)}
       />
 
       <Route
