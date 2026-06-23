@@ -1,7 +1,7 @@
 package _ErrorClub.example.demo.controller;
 
-import _ErrorClub.example.demo.entity.AuditLog;
-import _ErrorClub.example.demo.repository.AuditLogRepository;
+import _ErrorClub.example.demo.audit.entity.AuditLog;
+import _ErrorClub.example.demo.audit.repository.AuditLogRepository;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.OffsetDateTime;
