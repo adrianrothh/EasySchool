@@ -31,4 +31,32 @@ public class AuditLog {
     private String checksum;
 
     private OffsetDateTime createdAt;
+
+    public void setEvento(String evento) {
+        this.evento = evento;
+    }
+
+    public void setDetalhe(String detalhe) {
+        this.detalhe = detalhe;
+    }
+
+    public void setCreatedAt(OffsetDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public String getEvento() {
+        return evento;
+    }
+
+    public String getDetalhe() {
+        return detalhe;
+    }
+
+    public OffsetDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public UUID getId() {
+        return id;
+    }
 }
