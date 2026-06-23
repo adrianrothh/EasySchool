@@ -74,8 +74,6 @@ public class DataInitializer {
                 admin.setCreatedAt(java.time.OffsetDateTime.now());
                 userRepository.save(admin);
             }
-
-            System.out.println("Perfis e Usuarios de teste criados com sucesso!");
         };
     }
 }
