@@ -1,18 +1,37 @@
-# Documentação de Segurança — EasySchool
+# Documentação de Segurança e API — EasySchool
 
 ## Visão Geral
 
-A autenticação do EasySchool utiliza **JWT (JSON Web Token)** com **OAuth2 Resource Server stateless**. Toda requisição (exceto login e refresh) deve incluir um token válido no header `Authorization`. As senhas são armazenadas com hash BCrypt no banco de dados.
+A autenticação do EasySchool utiliza **JWT (JSON Web Token)** stateless. Toda requisição (exceto `/api/auth/**`) precisa enviar um access token válido no header `Authorization: Bearer <token>`. As senhas são gravadas com hash BCrypt no banco. A autorização por papel é declarada com `@PreAuthorize` em cada controller.
 
 ### Fluxo de Autenticação
 
 ```
 1. Cliente envia POST /api/auth/login com email e senha
 2. Servidor valida credenciais contra o banco (BCrypt)
-3. Servidor retorna accessToken (JWT 15min) + refreshToken (UUID, 7 dias)
+3. Servidor retorna accessToken (JWT 15 min) + refreshToken (UUID, 7 dias)
 4. Cliente envia o accessToken em todas as requisições: Authorization: Bearer <token>
 5. Quando o accessToken expira, cliente chama POST /api/auth/refresh com o refreshToken
 6. Servidor revoga o refreshToken antigo e retorna um novo par de tokens
+```
+
+### Quem valida o quê em cada request
+
+```
+[HTTP request com Authorization: Bearer <jwt>]
+            │
+            ▼
+[JwtAuthenticationFilter]  ← lê o header, valida assinatura/expiração,
+            │                  carrega o User pelo email e popula o
+            │                  SecurityContext com a role ROLE_<perfil>.
+            ▼
+[SecurityFilterChain]      ← se o SecurityContext está vazio em rota
+            │                  protegida, devolve 401 imediatamente.
+            ▼
+[@PreAuthorize do controller] ← verifica hasRole(...). Se a role do
+            │                     token não bate, devolve 403.
+            ▼
+[Controller → Service → Repository]
 ```
 
 ---
@@ -533,8 +552,10 @@ public class User {
 | Role | Nome no Spring Security | Descrição |
 |---|---|---|
 | ADMIN | `ROLE_ADMIN` | Acesso total ao sistema |
-| ALUNO | `ROLE_ALUNO` | Cria e consulta solicitações |
-| PROFESSOR | `ROLE_PROFESSOR` | Responde solicitações dos alunos |
+| ALUNO | `ROLE_ALUNO` | Cria e consulta as próprias solicitações |
+| PROFESSOR | `ROLE_PROFESSOR` | Lista e decide solicitações |
+
+A role no token é a `nome` do `Perfil` do usuário (carregado por `@ManyToOne` na entidade `User`). O `JwtAuthenticationFilter` adiciona o prefixo `ROLE_` ao popular o `SecurityContext`, então `@PreAuthorize("hasRole('ALUNO')")` no controller bate exatamente com `ROLE_ALUNO`.
 
 ### Como usar nos controllers:
 
@@ -556,7 +577,7 @@ public ResponseEntity<?> endpointComum() { ... }
 
 ## 12. Usuários de Teste (DataInitializer.java)
 
-Criados automaticamente na inicialização da aplicação:
+Criados automaticamente na inicialização da aplicação (o `CommandLineRunner` em `DataInitializer.java` cria os três perfis e insere os usuários apenas se ainda não existirem por email):
 
 | Email | Senha | Role |
 |---|---|---|
@@ -579,7 +600,7 @@ curl -X POST http://localhost:8080/api/auth/login \
 
 ### 2. Usar o token em requisições protegidas:
 ```bash
-curl http://localhost:8080/api/users \
+curl http://localhost:8080/api/solicitacoes/minhas \
   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9..."
 ```
 
@@ -589,3 +610,236 @@ curl -X POST http://localhost:8080/api/auth/refresh \
   -H "Content-Type: application/json" \
   -d '{"refreshToken":"550e8400-e29b-41d4-a716-446655440000"}'
 ```
+
+---
+
+## 14. CRUD de Solicitações
+
+O recurso `Solicitacao` representa um pedido feito por um aluno (revisão de nota ou abono de falta) que precisa ser analisado por um professor. Cada decisão do professor (APROVADA/REPROVADA) gera automaticamente uma `RespostaSolicitacao` com o parecer.
+
+### Visão geral dos endpoints
+
+| Método | Endpoint | Quem pode | O que faz |
+|---|---|---|---|
+| POST | `/api/solicitacoes` | ALUNO | Cria uma nova solicitação |
+| GET | `/api/solicitacoes/minhas` | ALUNO | Lista as solicitações do próprio aluno |
+| GET | `/api/solicitacoes` | PROFESSOR, ADMIN | Lista todas as solicitações |
+| PUT | `/api/solicitacoes/{id}/status` | PROFESSOR, ADMIN | Aprova/reprova e gera o parecer |
+| GET | `/api/respostas/solicitacao/{solicitacaoId}` | PROFESSOR, ADMIN | Lista os pareceres de uma solicitação |
+
+### Estados e regras de negócio
+
+- O campo `status` da solicitação assume três valores: `PENDENTE` (inicial), `APROVADA` ou `REPROVADA`.
+- Toda solicitação **nasce com status `PENDENTE`** — o cliente nunca define o status na criação.
+- O `alunoId` da solicitação é **sempre derivado do usuário logado**, nunca aceito no corpo da requisição. Isso impede que um aluno crie pedido em nome de outro.
+- O `tipo` aceita apenas `REVISAO_NOTA` ou `ABONO_FALTA` (validado em `SolicitacaoService`).
+- Uma vez decidida (`APROVADA`/`REPROVADA`), a solicitação **não pode ser alterada novamente** — o serviço devolve `409 Conflict`.
+
+### Entidade
+
+```java
+@Entity
+@Data
+@Table(name = "solicitacoes")
+public class Solicitacao {
+    @Id @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    private UUID alunoId;
+    private UUID professorId;
+    private String descricao;
+    private LocalDate dataOcorrencia;
+    private String tipo;          // REVISAO_NOTA | ABONO_FALTA
+    private String status;        // PENDENTE | APROVADA | REPROVADA
+    private String disciplina;
+
+    private OffsetDateTime createdAt;
+    private OffsetDateTime updatedAt;
+}
+```
+
+### Controller (SolicitacaoController.java)
+
+```java
+@RestController
+@RequestMapping("/api/solicitacoes")
+public class SolicitacaoController {
+
+    private final SolicitacaoService service;
+    private final CurrentUserService currentUser;
+
+    @PostMapping
+    @PreAuthorize("hasRole('ALUNO')")
+    public Solicitacao criar(@RequestBody CriarSolicitacaoRequest req) {
+        return service.criar(req, currentUser.getCurrentUserId());
+    }
+
+    @GetMapping("/minhas")
+    @PreAuthorize("hasRole('ALUNO')")
+    public List<Solicitacao> minhas() {
+        return service.listarMinhas(currentUser.getCurrentUserId());
+    }
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('PROFESSOR','ADMIN')")
+    public List<Solicitacao> todas() {
+        return service.listarTodas();
+    }
+
+    @PutMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('PROFESSOR','ADMIN')")
+    public Solicitacao alterarStatus(@PathVariable UUID id, @RequestBody AlterarStatusRequest req) {
+        return service.alterarStatus(id, req, currentUser.getCurrentUserId());
+    }
+}
+```
+
+### Como o `CurrentUserService` injeta o usuário logado
+
+Cada endpoint que precisa saber **quem** está fazendo a chamada usa `CurrentUserService.getCurrentUserId()`. Ele lê o `Authentication` do `SecurityContextHolder` (populado pelo `JwtAuthenticationFilter`), pega o email do `principal` e busca o `UUID` do `User` no banco. Assim, mesmo que o cliente envie um `alunoId` no body, ele é ignorado — só o `id` do usuário do token entra na solicitação.
+
+```java
+public UUID getCurrentUserId() {
+    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    if (auth == null || auth.getName() == null) {
+        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Não autenticado");
+    }
+    String email = auth.getName();
+    return userRepository.findByEmail(email)
+            .orElseThrow(() -> new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED, "Usuário do token não encontrado"))
+            .getId();
+}
+```
+
+### Endpoints em detalhe
+
+#### POST /api/solicitacoes  — `ROLE_ALUNO`
+
+Cria a solicitação como `PENDENTE`. O `alunoId` é o do token.
+
+**Request:**
+```json
+{
+  "descricao": "Pedido de revisão da prova 2",
+  "dataOcorrencia": "2026-06-20",
+  "tipo": "REVISAO_NOTA",
+  "disciplina": "Matemática",
+  "professorId": "<UUID-de-um-professor>"
+}
+```
+
+**Response (200):**
+```json
+{
+  "id": "9e0c4c8e-3d2d-4f5b-9b8d-...",
+  "alunoId": "...",
+  "professorId": "...",
+  "descricao": "Pedido de revisão da prova 2",
+  "dataOcorrencia": "2026-06-20",
+  "tipo": "REVISAO_NOTA",
+  "status": "PENDENTE",
+  "disciplina": "Matemática",
+  "createdAt": "2026-06-23T17:30:00-03:00",
+  "updatedAt": "2026-06-23T17:30:00-03:00"
+}
+```
+
+**Erros:**
+- `400` — `tipo` ausente ou diferente de `REVISAO_NOTA`/`ABONO_FALTA`, ou `descricao` em branco.
+- `401` — token ausente/expirado/inválido.
+- `403` — usuário autenticado, mas sem `ROLE_ALUNO`.
+
+#### GET /api/solicitacoes/minhas  — `ROLE_ALUNO`
+
+Retorna apenas as solicitações cujo `alunoId` é igual ao `id` do usuário logado. Garante que um aluno nunca veja pedidos de outro.
+
+#### GET /api/solicitacoes  — `ROLE_PROFESSOR` ou `ROLE_ADMIN`
+
+Lista todas as solicitações do sistema (sem filtro). Usado pela tela de análise.
+
+#### PUT /api/solicitacoes/{id}/status  — `ROLE_PROFESSOR` ou `ROLE_ADMIN`
+
+Decide a solicitação. Em uma única transação o service:
+
+1. Valida que `status` é `APROVADA` ou `REPROVADA`.
+2. Confirma que a solicitação existe e que está `PENDENTE` (senão, `409`).
+3. Atualiza `status` e `updatedAt`.
+4. Persiste uma `RespostaSolicitacao` com `autorId = id do usuário logado`, o texto do parecer e a decisão.
+
+**Request:**
+```json
+{
+  "status": "APROVADA",
+  "textoParecer": "Revisão concedida. Nota corrigida para 8,5."
+}
+```
+
+**Response (200):** a solicitação já com o novo status.
+
+**Erros:**
+- `400` — `status` inválido.
+- `404` — solicitação não encontrada.
+- `409` — solicitação já foi `APROVADA` ou `REPROVADA` (não permite re-decidir).
+
+#### GET /api/respostas/solicitacao/{solicitacaoId}  — `ROLE_PROFESSOR` ou `ROLE_ADMIN`
+
+Lista os pareceres de uma solicitação. Útil para histórico/auditoria.
+
+### DTOs
+
+```java
+public class CriarSolicitacaoRequest {
+    public String descricao;
+    public LocalDate dataOcorrencia;
+    public String tipo;
+    public String disciplina;
+    public UUID professorId;
+}
+
+public class AlterarStatusRequest {
+    public String status;
+    public String textoParecer;
+}
+```
+
+Note que **nenhum DTO aceita `alunoId` ou `status` inicial** — esses campos são definidos pelo servidor a partir do token e da lógica de negócio.
+
+### Fluxo end-to-end
+
+```
+ALUNO                         PROFESSOR
+ │                             │
+ │ POST /api/auth/login        │
+ │────────────────────────────▶│ (servidor)
+ │ ◀── accessToken+refresh ────│
+ │                             │
+ │ POST /api/solicitacoes      │
+ │  Authorization: Bearer …    │
+ │────────────────────────────▶│ valida JWT → @PreAuthorize ROLE_ALUNO
+ │ ◀── 200 Solicitacao(PENDENTE)
+ │                             │
+ │                             │ GET /api/solicitacoes
+ │                             │  Authorization: Bearer …
+ │                             │────▶ ROLE_PROFESSOR
+ │                             │ ◀── 200 [Solicitacao,…]
+ │                             │
+ │                             │ PUT /api/solicitacoes/{id}/status
+ │                             │  body: { status: "APROVADA", textoParecer: "…" }
+ │                             │────▶ ROLE_PROFESSOR
+ │                             │ ◀── 200 Solicitacao(APROVADA)
+ │                             │     + RespostaSolicitacao salva
+ │                             │
+ │ GET /api/solicitacoes/minhas │
+ │────────────────────────────▶│ ROLE_ALUNO
+ │ ◀── 200 [Solicitacao(APROVADA)]
+```
+
+### Tabela rápida — código x role
+
+| Camada | Onde a role é verificada |
+|---|---|
+| `JwtAuthenticationFilter` | Decodifica o claim `role` do JWT e adiciona `ROLE_<role>` no `SecurityContext`. |
+| `SecurityConfig` | Bloqueia qualquer rota fora de `/api/auth/**` se o `SecurityContext` não tiver autenticação (→ 401). |
+| `@PreAuthorize` no controller | Compara as authorities do `SecurityContext` com o `hasRole(...)` / `hasAnyRole(...)` declarado (→ 403 se não bater). |
+| `SolicitacaoService` | Faz validação de **regra de negócio** (tipo, status atual etc.) — não checa role, mas usa o `alunoId`/`autorId` recebidos do controller, que vieram do `CurrentUserService`. |

@@ -10,9 +10,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.UUID;
 
-/**
- * buscamos o User pelo email para obter o UUID (que é o que a Solicitacao usa).
- */
 @Service
 public class CurrentUserService {
 
@@ -27,7 +24,7 @@ public class CurrentUserService {
         if (auth == null || auth.getName() == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Não autenticado");
         }
-        String email = auth.getName(); // principal = email (definido no JwtAuthenticationFilter)
+        String email = auth.getName();
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.UNAUTHORIZED, "Usuário do token não encontrado"));
