@@ -1,5 +1,8 @@
 package _ErrorClub.example.demo.auth.service;
 
+import _ErrorClub.example.demo.audit.enums.AuditEvento;
+import _ErrorClub.example.demo.audit.service.AuditLogService;
+import _ErrorClub.example.demo.auth.dto.TokenPair;
 import _ErrorClub.example.demo.auth.entity.RefreshToken;
 import _ErrorClub.example.demo.auth.repository.RefreshTokenRepository;
 import _ErrorClub.example.demo.user.entity.User;
@@ -20,40 +23,84 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final AuditLogService auditLogService;
 
     public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
-                       RefreshTokenRepository refreshTokenRepository) {
+                       RefreshTokenRepository refreshTokenRepository,
+                       AuditLogService auditLogService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.auditLogService = auditLogService;
     }
 
-    public record TokenPair(String accessToken, String refreshToken) {}
-
     public TokenPair login(String email, String password) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Credenciais inválidas"));
+        User user = userRepository.findByEmail(email).orElse(null);
+
+        if (user == null) {
+            auditLogService.registrar(
+                    AuditEvento.AUTH_LOGIN_FAIL,
+                    "Usuário não encontrado: " + email,
+                    null,
+                    null,
+                    "USER");
+            throw new RuntimeException("Credenciais inválidas");
+        }
 
         if (!user.isActivate()) {
+            auditLogService.registrar(
+                    AuditEvento.AUTH_LOGIN_FAIL,
+                    "Usuário desativado: " + email,
+                    user.getId(),
+                    user.getId().toString(),
+                    "USER");
             throw new RuntimeException("Usuário desativado");
         }
 
         if (!passwordEncoder.matches(password, user.getPassword())) {
+            auditLogService.registrar(
+                    AuditEvento.AUTH_LOGIN_FAIL,
+                    "Senha incorreta para: " + email,
+                    user.getId(),
+                    user.getId().toString(),
+                    "USER");
             throw new RuntimeException("Credenciais inválidas");
         }
 
-        return generateTokens(user);
+        TokenPair tokens = generateTokens(user);
+        auditLogService.registrar(
+                AuditEvento.AUTH_LOGIN_SUCCESS,
+                "Login bem-sucedido: " + email,
+                user.getId(),
+                user.getId().toString(),
+                "USER");
+        return tokens;
     }
 
     public TokenPair refresh(String rawRefreshToken) {
         String hash = hashToken(rawRefreshToken);
-        RefreshToken stored = refreshTokenRepository.findByTokenHash(hash)
-                .orElseThrow(() -> new RuntimeException("Refresh token inválido"));
+        RefreshToken stored = refreshTokenRepository.findByTokenHash(hash).orElse(null);
+
+        if (stored == null) {
+            auditLogService.registrar(
+                    AuditEvento.AUTH_REFRESH_FAIL,
+                    "Refresh token não encontrado",
+                    null,
+                    null,
+                    "REFRESH_TOKEN");
+            throw new RuntimeException("Refresh token inválido");
+        }
 
         if (stored.isRevoked() || stored.getExpiresAt().isBefore(OffsetDateTime.now())) {
+            auditLogService.registrar(
+                    AuditEvento.AUTH_REFRESH_FAIL,
+                    "Refresh token expirado ou revogado",
+                    stored.getUsuarioId(),
+                    stored.getId().toString(),
+                    "REFRESH_TOKEN");
             throw new RuntimeException("Refresh token expirado ou revogado");
         }
 
@@ -61,9 +108,24 @@ public class AuthService {
         refreshTokenRepository.save(stored);
 
         User user = userRepository.findById(stored.getUsuarioId())
-                .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
+                .orElseThrow(() -> {
+                    auditLogService.registrar(
+                            AuditEvento.AUTH_REFRESH_FAIL,
+                            "Usuário do refresh token não encontrado",
+                            stored.getUsuarioId(),
+                            stored.getId().toString(),
+                            "REFRESH_TOKEN");
+                    return new RuntimeException("Usuário não encontrado");
+                });
 
-        return generateTokens(user);
+        TokenPair tokens = generateTokens(user);
+        auditLogService.registrar(
+                AuditEvento.AUTH_REFRESH_SUCCESS,
+                "Refresh token rotacionado",
+                user.getId(),
+                user.getId().toString(),
+                "USER");
+        return tokens;
     }
 
     private TokenPair generateTokens(User user) {
