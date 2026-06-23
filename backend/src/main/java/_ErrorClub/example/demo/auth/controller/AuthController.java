@@ -1,5 +1,9 @@
 package _ErrorClub.example.demo.auth.controller;
 
+import _ErrorClub.example.demo.auth.dto.LoginRequest;
+import _ErrorClub.example.demo.auth.dto.RefreshRequest;
+import _ErrorClub.example.demo.auth.dto.TokenPair;
+import _ErrorClub.example.demo.auth.dto.TokenResponse;
 import _ErrorClub.example.demo.auth.service.AuthService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,19 +21,15 @@ public class AuthController {
         this.authService = authService;
     }
 
-    record LoginRequest(String email, String password) {}
-    record RefreshRequest(String refreshToken) {}
-    record TokenResponse(String accessToken, String refreshToken) {}
-
     @PostMapping("/login")
     public ResponseEntity<TokenResponse> login(@RequestBody LoginRequest request) {
-        AuthService.TokenPair tokens = authService.login(request.email(), request.password());
-        return ResponseEntity.ok(new TokenResponse(tokens.accessToken(), tokens.refreshToken()));
+        TokenPair tokens = authService.login(request.getEmail(), request.getPassword());
+        return ResponseEntity.ok(new TokenResponse(tokens.getAccessToken(), tokens.getRefreshToken()));
     }
 
     @PostMapping("/refresh")
     public ResponseEntity<TokenResponse> refresh(@RequestBody RefreshRequest request) {
-        AuthService.TokenPair tokens = authService.refresh(request.refreshToken());
-        return ResponseEntity.ok(new TokenResponse(tokens.accessToken(), tokens.refreshToken()));
+        TokenPair tokens = authService.refresh(request.getRefreshToken());
+        return ResponseEntity.ok(new TokenResponse(tokens.getAccessToken(), tokens.getRefreshToken()));
     }
 }

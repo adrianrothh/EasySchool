@@ -1,5 +1,6 @@
 package _ErrorClub.example.demo.resposta.entity;
 
+import _ErrorClub.example.demo.solicitacao.enums.StatusSolicitacao;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -22,7 +23,8 @@ public class RespostaSolicitacao {
 
     private String texto;
 
-    private String decisao;
+    @Enumerated(EnumType.STRING)
+    private StatusSolicitacao decisao;
 
     private OffsetDateTime createdAt;
 }
