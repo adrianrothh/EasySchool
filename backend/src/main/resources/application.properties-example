@@ -1,7 +1,7 @@
 spring.application.name=demo
-spring.datasource.url=jdbc:postgresql://localhost:5433/easyschool
-spring.datasource.username=postgres
-spring.datasource.password=0000
+spring.datasource.url=jdbc:postgresql://localhost:{PORT}/easyschool
+spring.datasource.username={USERNAME}
+spring.datasource.password={PASSWORD}
 spring.datasource.driver-class-name=org.postgresql.Driver
 spring.jpa.hibernate.ddl-auto=update
 spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
@@ -10,5 +10,5 @@ spring.jpa.show-sql=true
 logging.level.org.springframework.web=DEBUG
 
 # JWT
-jwt.secret=Ao/ERak+BF46KCdhwMWf5fkwK/hmjZAbYXGFGfKJKjg=
-jwt.access-token-expiration=3600000
+jwt.secret={JWT_SECRET}
+jwt.access-token-expiration={TOKEN_SECONDS}
