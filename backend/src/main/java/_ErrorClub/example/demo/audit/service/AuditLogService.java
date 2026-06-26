@@ -33,7 +33,6 @@ public class AuditLogService {
         log.setEvento(evento.name());
         log.setDetalhe(detalhe);
         log.setUsuarioId(usuarioId);
-//        log.setRecursoId(recursoId);
         log.setRecursoTipo(recursoTipo);
         log.setUserAgent(extrairUserAgent());
         log.setCreatedAt(OffsetDateTime.now());

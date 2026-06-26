@@ -1,13 +1,13 @@
 package _ErrorClub.example.demo.solicitacao.service;
 
-import _ErrorClub.example.demo.audit.model.AuditEvento;
+import _ErrorClub.example.demo.audit.enums.AuditEvento;
 import _ErrorClub.example.demo.audit.service.AuditLogService;
+import _ErrorClub.example.demo.resposta.entity.RespostaSolicitacao;
+import _ErrorClub.example.demo.resposta.repository.RespostaSolicitacaoRepository;
 import _ErrorClub.example.demo.solicitacao.dto.AlterarStatusRequest;
 import _ErrorClub.example.demo.solicitacao.dto.CriarSolicitacaoRequest;
-import _ErrorClub.example.demo.solicitacao.model.RespostaSolicitacao;
-import _ErrorClub.example.demo.solicitacao.model.Solicitacao;
-import _ErrorClub.example.demo.solicitacao.model.StatusSolicitacao;
-import _ErrorClub.example.demo.solicitacao.repository.RespostaSolicitacaoRepository;
+import _ErrorClub.example.demo.solicitacao.entity.Solicitacao;
+import _ErrorClub.example.demo.solicitacao.enums.StatusSolicitacao;
 import _ErrorClub.example.demo.solicitacao.repository.SolicitacaoRepository;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
-@RequiredArgsConstructor
 public class SolicitacaoService {
 
     private static final String RECURSO_TIPO = "SOLICITACAO";

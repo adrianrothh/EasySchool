@@ -18,8 +18,6 @@ public class AuditLog {
 
     private UUID usuarioId;
 
-    //private String recursoId;
-
     private String userAgent;
 
     private String detalhe;
@@ -27,8 +25,6 @@ public class AuditLog {
     private String evento;
 
     private String recursoTipo;
-
-    //private String checksum;
 
     private OffsetDateTime createdAt;
 }

@@ -1,7 +1,13 @@
-# Como rodar o Frontend
+# Frontend — EasySchool
 
-## 1. Confira se as dependencias estão instaladas
-npm install
+As instruções de execução foram consolidadas no [README principal](./README.md#-como-rodar-o-projeto) na raiz do projeto.
 
-## 2. Rode
+**Resumo rápido:**
+
+```bash
+cd frontend
+npm install        # só na primeira vez
 npm run dev
+```
+
+Aplicação disponível em <http://localhost:5173> (porta padrão do Vite).
