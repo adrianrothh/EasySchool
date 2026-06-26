@@ -1,5 +1,6 @@
 package _ErrorClub.example.demo.user.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 import java.time.OffsetDateTime;
@@ -18,22 +19,29 @@ public class User {
 
     private String email;
 
+    @JsonIgnore
     private String cpf;
 
+    @JsonIgnore
     private String password;
 
+    @JsonIgnore
     private String totpSecretHash;
 
+    @JsonIgnore
     private boolean totpActivate = false;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "profile_id")
     private Perfil perfil;
 
+    @JsonIgnore
     private boolean activate = true;
 
+    @JsonIgnore
     private short loginAttempt = 0;
 
+    @JsonIgnore
     private OffsetDateTime blockedTo;
 
     private OffsetDateTime createdAt;

@@ -5,6 +5,7 @@ import _ErrorClub.example.demo.auth.dto.RefreshRequest;
 import _ErrorClub.example.demo.auth.dto.TokenPair;
 import _ErrorClub.example.demo.auth.dto.TokenResponse;
 import _ErrorClub.example.demo.auth.service.AuthService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -22,13 +23,13 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<TokenResponse> login(@RequestBody LoginRequest request) {
+    public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
         TokenPair tokens = authService.login(request.getEmail(), request.getPassword());
         return ResponseEntity.ok(new TokenResponse(tokens.getAccessToken(), tokens.getRefreshToken()));
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<TokenResponse> refresh(@RequestBody RefreshRequest request) {
+    public ResponseEntity<TokenResponse> refresh(@Valid @RequestBody RefreshRequest request) {
         TokenPair tokens = authService.refresh(request.getRefreshToken());
         return ResponseEntity.ok(new TokenResponse(tokens.getAccessToken(), tokens.getRefreshToken()));
     }

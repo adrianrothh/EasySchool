@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: easyschool-db
+    environment:
+      POSTGRES_DB: easyschool
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: easyschool123
+    ports:
+      - "5432:5432"
+    volumes:
+      - easyschool_data:/var/lib/postgresql/data
+
+volumes:
+  easyschool_data:

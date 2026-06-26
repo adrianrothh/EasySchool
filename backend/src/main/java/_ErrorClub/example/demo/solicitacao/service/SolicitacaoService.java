@@ -6,9 +6,12 @@ import _ErrorClub.example.demo.resposta.entity.RespostaSolicitacao;
 import _ErrorClub.example.demo.resposta.repository.RespostaSolicitacaoRepository;
 import _ErrorClub.example.demo.solicitacao.dto.AlterarStatusRequest;
 import _ErrorClub.example.demo.solicitacao.dto.CriarSolicitacaoRequest;
+import _ErrorClub.example.demo.solicitacao.dto.SolicitacaoResponse;
 import _ErrorClub.example.demo.solicitacao.entity.Solicitacao;
 import _ErrorClub.example.demo.solicitacao.enums.StatusSolicitacao;
 import _ErrorClub.example.demo.solicitacao.repository.SolicitacaoRepository;
+import _ErrorClub.example.demo.user.entity.User;
+import _ErrorClub.example.demo.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -16,7 +19,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -27,8 +32,9 @@ public class SolicitacaoService {
     private final SolicitacaoRepository solicitacaoRepository;
     private final RespostaSolicitacaoRepository respostaRepository;
     private final AuditLogService auditLogService;
+    private final UserRepository userRepository;
 
-    public Solicitacao criar(CriarSolicitacaoRequest req, UUID alunoId) {
+    public SolicitacaoResponse criar(CriarSolicitacaoRequest req, UUID alunoId) {
         validarCriacao(req, alunoId);
 
         OffsetDateTime now = OffsetDateTime.now();
@@ -49,22 +55,22 @@ public class SolicitacaoService {
                 "Tipo=" + salva.getTipo() + ", disciplina=" + salva.getDisciplina(),
                 alunoId, salva.getId());
 
-        return salva;
+        return toResponse(salva);
     }
 
-    public List<Solicitacao> listarMinhas(UUID alunoId) {
+    public List<SolicitacaoResponse> listarMinhas(UUID alunoId) {
         List<Solicitacao> lista = solicitacaoRepository.findByAlunoId(alunoId);
         auditar(AuditEvento.SOLICITACAO_LISTADA_MINHAS, "Total=" + lista.size(), alunoId, null);
-        return lista;
+        return toResponseList(lista);
     }
 
-    public List<Solicitacao> listarTodas() {
+    public List<SolicitacaoResponse> listarTodas() {
         List<Solicitacao> lista = solicitacaoRepository.findAll();
         auditar(AuditEvento.SOLICITACAO_LISTADA_TODAS, "Total=" + lista.size(), null, null);
-        return lista;
+        return toResponseList(lista);
     }
 
-    public Solicitacao alterarStatus(UUID solicitacaoId, AlterarStatusRequest req, UUID autorId) {
+    public SolicitacaoResponse alterarStatus(UUID solicitacaoId, AlterarStatusRequest req, UUID autorId) {
         StatusSolicitacao novoStatus = validarDecisao(req.getStatus(), autorId, solicitacaoId);
         Solicitacao s = buscarPendente(solicitacaoId, autorId);
 
@@ -81,7 +87,58 @@ public class SolicitacaoService {
                 "De " + statusAnterior + " para " + novoStatus,
                 autorId, s.getId());
 
-        return s;
+        return toResponse(s);
+    }
+
+    private SolicitacaoResponse toResponse(Solicitacao s) {
+        SolicitacaoResponse r = new SolicitacaoResponse();
+        r.setId(s.getId());
+        r.setProfessorId(s.getProfessorId());
+        r.setDescricao(s.getDescricao());
+        r.setDataOcorrencia(s.getDataOcorrencia());
+        r.setTipo(s.getTipo());
+        r.setStatus(s.getStatus());
+        r.setDisciplina(s.getDisciplina());
+        r.setCreatedAt(s.getCreatedAt());
+        r.setUpdatedAt(s.getUpdatedAt());
+
+        userRepository.findById(s.getAlunoId()).ifPresent(user -> {
+            r.setEmailAluno(user.getEmail());
+            r.setNomeAluno(user.getName());
+        });
+
+        return r;
+    }
+
+    private List<SolicitacaoResponse> toResponseList(List<Solicitacao> solicitacoes) {
+        List<UUID> alunoIds = solicitacoes.stream()
+                .map(Solicitacao::getAlunoId)
+                .distinct()
+                .toList();
+
+        Map<UUID, User> usersById = userRepository.findAllById(alunoIds).stream()
+                .collect(Collectors.toMap(User::getId, u -> u));
+
+        return solicitacoes.stream().map(s -> {
+            SolicitacaoResponse r = new SolicitacaoResponse();
+            r.setId(s.getId());
+            r.setProfessorId(s.getProfessorId());
+            r.setDescricao(s.getDescricao());
+            r.setDataOcorrencia(s.getDataOcorrencia());
+            r.setTipo(s.getTipo());
+            r.setStatus(s.getStatus());
+            r.setDisciplina(s.getDisciplina());
+            r.setCreatedAt(s.getCreatedAt());
+            r.setUpdatedAt(s.getUpdatedAt());
+
+            User user = usersById.get(s.getAlunoId());
+            if (user != null) {
+                r.setEmailAluno(user.getEmail());
+                r.setNomeAluno(user.getName());
+            }
+
+            return r;
+        }).toList();
     }
 
     private void validarCriacao(CriarSolicitacaoRequest req, UUID alunoId) {

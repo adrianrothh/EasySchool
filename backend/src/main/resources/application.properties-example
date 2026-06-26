@@ -1,14 +1,17 @@
 spring.application.name=demo
-spring.datasource.url=jdbc:postgresql://localhost:{PORT}/easyschool
-spring.datasource.username={USERNAME}
-spring.datasource.password={PASSWORD}
-spring.datasource.driver-class-name=org.postgresql.Driver
-spring.jpa.hibernate.ddl-auto=update
-spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
-spring.jpa.show-sql=true
-# spring.jpa.properties.hibernate.format_sql=true
-logging.level.org.springframework.web=DEBUG
 
-# JWT
-jwt.secret={JWT_SECRET}
-jwt.access-token-expiration={TOKEN_SECONDS}
+# Banco de dados - rode "docker compose up -d" para subir o PostgreSQL
+spring.datasource.url=jdbc:postgresql://localhost:5432/easyschool
+spring.datasource.username=postgres
+spring.datasource.password=easyschool123
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=false
+
+# Ativa o perfil dev para criar usuarios de teste automaticamente
+spring.profiles.active=dev
+
+# JWT - troque o secret em producao (minimo 256 bits)
+jwt.secret=TROQUE-ESTE-SECRET-EM-PRODUCAO-minimo-256-bits-de-seguranca!!
+jwt.access-token-expiration=3600000

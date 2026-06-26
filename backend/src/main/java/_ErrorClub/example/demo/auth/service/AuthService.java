@@ -7,8 +7,10 @@ import _ErrorClub.example.demo.auth.entity.RefreshToken;
 import _ErrorClub.example.demo.auth.repository.RefreshTokenRepository;
 import _ErrorClub.example.demo.user.entity.User;
 import _ErrorClub.example.demo.user.repository.UserRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -18,6 +20,9 @@ import java.util.UUID;
 
 @Service
 public class AuthService {
+
+    private static final short MAX_LOGIN_ATTEMPTS = 5;
+    private static final int LOCKOUT_MINUTES = 15;
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -43,40 +48,44 @@ public class AuthService {
         if (user == null) {
             auditLogService.registrar(
                     AuditEvento.AUTH_LOGIN_FAIL,
-                    "Usuário não encontrado: " + email,
-                    null,
-                    null,
-                    "USER");
-            throw new RuntimeException("Credenciais inválidas");
+                    "Credenciais inválidas",
+                    null, null, "USER");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Credenciais inválidas");
         }
 
         if (!user.isActivate()) {
             auditLogService.registrar(
                     AuditEvento.AUTH_LOGIN_FAIL,
-                    "Usuário desativado: " + email,
-                    user.getId(),
-                    user.getId().toString(),
-                    "USER");
-            throw new RuntimeException("Usuário desativado");
+                    "Conta desativada",
+                    user.getId(), user.getId().toString(), "USER");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Conta desativada");
+        }
+
+        if (isAccountLocked(user)) {
+            auditLogService.registrar(
+                    AuditEvento.AUTH_LOGIN_FAIL,
+                    "Conta bloqueada temporariamente",
+                    user.getId(), user.getId().toString(), "USER");
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Conta bloqueada. Tente novamente em " + LOCKOUT_MINUTES + " minutos");
         }
 
         if (!passwordEncoder.matches(password, user.getPassword())) {
+            incrementLoginAttempts(user);
             auditLogService.registrar(
                     AuditEvento.AUTH_LOGIN_FAIL,
-                    "Senha incorreta para: " + email,
-                    user.getId(),
-                    user.getId().toString(),
-                    "USER");
-            throw new RuntimeException("Credenciais inválidas");
+                    "Credenciais inválidas",
+                    user.getId(), user.getId().toString(), "USER");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Credenciais inválidas");
         }
+
+        resetLoginAttempts(user);
 
         TokenPair tokens = generateTokens(user);
         auditLogService.registrar(
                 AuditEvento.AUTH_LOGIN_SUCCESS,
-                "Login bem-sucedido: " + email,
-                user.getId(),
-                user.getId().toString(),
-                "USER");
+                "Login bem-sucedido",
+                user.getId(), user.getId().toString(), "USER");
         return tokens;
     }
 
@@ -88,20 +97,16 @@ public class AuthService {
             auditLogService.registrar(
                     AuditEvento.AUTH_REFRESH_FAIL,
                     "Refresh token não encontrado",
-                    null,
-                    null,
-                    "REFRESH_TOKEN");
-            throw new RuntimeException("Refresh token inválido");
+                    null, null, "REFRESH_TOKEN");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token inválido");
         }
 
         if (stored.isRevoked() || stored.getExpiresAt().isBefore(OffsetDateTime.now())) {
             auditLogService.registrar(
                     AuditEvento.AUTH_REFRESH_FAIL,
                     "Refresh token expirado ou revogado",
-                    stored.getUsuarioId(),
-                    stored.getId().toString(),
-                    "REFRESH_TOKEN");
-            throw new RuntimeException("Refresh token expirado ou revogado");
+                    stored.getUsuarioId(), stored.getId().toString(), "REFRESH_TOKEN");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token expirado ou revogado");
         }
 
         stored.setRevoked(true);
@@ -112,20 +117,39 @@ public class AuthService {
                     auditLogService.registrar(
                             AuditEvento.AUTH_REFRESH_FAIL,
                             "Usuário do refresh token não encontrado",
-                            stored.getUsuarioId(),
-                            stored.getId().toString(),
-                            "REFRESH_TOKEN");
-                    return new RuntimeException("Usuário não encontrado");
+                            stored.getUsuarioId(), stored.getId().toString(), "REFRESH_TOKEN");
+                    return new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Usuário não encontrado");
                 });
 
         TokenPair tokens = generateTokens(user);
         auditLogService.registrar(
                 AuditEvento.AUTH_REFRESH_SUCCESS,
                 "Refresh token rotacionado",
-                user.getId(),
-                user.getId().toString(),
-                "USER");
+                user.getId(), user.getId().toString(), "USER");
         return tokens;
+    }
+
+    private boolean isAccountLocked(User user) {
+        return user.getBlockedTo() != null && user.getBlockedTo().isAfter(OffsetDateTime.now());
+    }
+
+    private void incrementLoginAttempts(User user) {
+        short attempts = (short) (user.getLoginAttempt() + 1);
+        user.setLoginAttempt(attempts);
+        if (attempts >= MAX_LOGIN_ATTEMPTS) {
+            user.setBlockedTo(OffsetDateTime.now().plusMinutes(LOCKOUT_MINUTES));
+        }
+        user.setUpdatedAt(OffsetDateTime.now());
+        userRepository.save(user);
+    }
+
+    private void resetLoginAttempts(User user) {
+        if (user.getLoginAttempt() > 0 || user.getBlockedTo() != null) {
+            user.setLoginAttempt((short) 0);
+            user.setBlockedTo(null);
+            user.setUpdatedAt(OffsetDateTime.now());
+            userRepository.save(user);
+        }
     }
 
     private TokenPair generateTokens(User user) {

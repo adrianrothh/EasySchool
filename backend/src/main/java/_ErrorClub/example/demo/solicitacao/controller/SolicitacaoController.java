@@ -3,8 +3,9 @@ package _ErrorClub.example.demo.solicitacao.controller;
 import _ErrorClub.example.demo.infra.security.CurrentUserService;
 import _ErrorClub.example.demo.solicitacao.dto.AlterarStatusRequest;
 import _ErrorClub.example.demo.solicitacao.dto.CriarSolicitacaoRequest;
-import _ErrorClub.example.demo.solicitacao.entity.Solicitacao;
+import _ErrorClub.example.demo.solicitacao.dto.SolicitacaoResponse;
 import _ErrorClub.example.demo.solicitacao.service.SolicitacaoService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,26 +29,26 @@ public class SolicitacaoController {
 
     @PostMapping
     @PreAuthorize("hasRole('ALUNO')")
-    public Solicitacao criar(@RequestBody CriarSolicitacaoRequest req) {
+    public SolicitacaoResponse criar(@Valid @RequestBody CriarSolicitacaoRequest req) {
         return service.criar(req, currentUser.getCurrentUserId());
     }
 
     @GetMapping("/minhas")
     @PreAuthorize("hasRole('ALUNO')")
-    public List<Solicitacao> minhas() {
+    public List<SolicitacaoResponse> minhas() {
         return service.listarMinhas(currentUser.getCurrentUserId());
     }
 
     @GetMapping
     @PreAuthorize("hasAnyRole('PROFESSOR','ADMIN')")
-    public List<Solicitacao> todas() {
+    public List<SolicitacaoResponse> todas() {
         return service.listarTodas();
     }
 
     @PutMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('PROFESSOR','ADMIN')")
-    public Solicitacao alterarStatus(@PathVariable UUID id,
-                                     @RequestBody AlterarStatusRequest req) {
+    public SolicitacaoResponse alterarStatus(@PathVariable UUID id,
+                                     @Valid @RequestBody AlterarStatusRequest req) {
         return service.alterarStatus(id, req, currentUser.getCurrentUserId());
     }
 }
