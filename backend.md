@@ -1,43 +1,28 @@
-# Como rodar o backend
+# Backend — EasySchool
 
-## 1. Criar o banco de dados
+As instruções completas de execução estão no [README principal](./README.md#-como-rodar-o-projeto) na raiz do projeto.
 
--Abra o SQL Shell do PostgreSQL e crie o banco:
-CREATE DATABASE easyschool;
+**Resumo rápido:**
 
-## 2. Configurar o banco no projeto
+```bash
+# 1. Copiar o template de configuracao (so na primeira vez)
+cp backend/src/main/resources/application.properties.example backend/src/main/resources/application.properties
+# (Windows PowerShell)
+# Copy-Item backend\src\main\resources\application.properties.example backend\src\main\resources\application.properties
 
--No arquivo "backend/src/main/resources/application.properties" confira se está apontando para o banco local:
+# 2. Subir o banco - escolha A ou B:
+docker compose up -d                  # A) Docker
+# B) Postgres local: crie o banco "easyschool" e ajuste a senha em application.properties
 
-spring.datasource.url=jdbc:postgresql://localhost:5432/easyschool
-spring.datasource.username=postgres
-spring.datasource.password=**sua_senha_do_postgres** `<----  (A senha deve ser a mesma configurada na instalação do PostgreSQL)`
-
-spring.jpa.hibernate.ddl-auto=update
-spring.jpa.show-sql=true
-spring.jpa.properties.hibernate.format_sql=true
-
-server.port=8080
-
-## 3. Rodar o backend
-
--No terminal, entre na pasta do backend:
+# 3. Rodar o backend
 cd backend
+./mvnw spring-boot:run                # Linux/macOS
+.\mvnw.cmd spring-boot:run            # Windows
+```
 
--Depois execute:
-.\mvnw.cmd spring-boot:run
+API disponível em <http://localhost:8080>.
+Healthcheck: <http://localhost:8080/api/health>.
 
-Se tudo estiver certo, o terminal deve mostrar que o Tomcat iniciou na porta 8080:
+## Configuracao
 
-Tomcat started on port 8080
-Started DemoApplication
-
-## 4. Testar se a API está respondendo
-
--Com o backend rodando, acesse no navegador:
-
-http://localhost:8080/api/health
-
-Resposta esperada:
-
--EasySchool API rodando
+Toda a configuracao (URL do banco, credenciais, JWT, porta) fica em `backend/src/main/resources/application.properties`. Esse arquivo e **gitignored** — cada desenvolvedor mantem o seu, com a senha do seu Postgres. O template versionado e `application.properties.example`.

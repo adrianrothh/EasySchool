@@ -9,17 +9,14 @@ import _ErrorClub.example.demo.solicitacao.dto.CriarSolicitacaoRequest;
 import _ErrorClub.example.demo.solicitacao.entity.Solicitacao;
 import _ErrorClub.example.demo.solicitacao.enums.StatusSolicitacao;
 import _ErrorClub.example.demo.solicitacao.repository.SolicitacaoRepository;
-import lombok.RequiredArgsConstructor;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.time.OffsetDateTime;
-import java.util.List;
-import java.util.UUID;
-
 @Service
-@RequiredArgsConstructor
 public class SolicitacaoService {
 
     private static final String RECURSO_TIPO = "SOLICITACAO";
@@ -28,10 +25,19 @@ public class SolicitacaoService {
     private final RespostaSolicitacaoRepository respostaRepository;
     private final AuditLogService auditLogService;
 
+    public SolicitacaoService(SolicitacaoRepository solicitacaoRepository,
+                              RespostaSolicitacaoRepository respostaRepository,
+                              AuditLogService auditLogService) {
+        this.solicitacaoRepository = solicitacaoRepository;
+        this.respostaRepository = respostaRepository;
+        this.auditLogService = auditLogService;
+    }
+
     public Solicitacao criar(CriarSolicitacaoRequest req, UUID alunoId) {
         validarCriacao(req, alunoId);
 
         OffsetDateTime now = OffsetDateTime.now();
+
         Solicitacao s = new Solicitacao();
         s.setAlunoId(alunoId);
         s.setProfessorId(req.getProfessorId());
@@ -45,22 +51,39 @@ public class SolicitacaoService {
 
         Solicitacao salva = solicitacaoRepository.save(s);
 
-        auditar(AuditEvento.SOLICITACAO_CRIADA,
-                "Tipo=" + salva.getTipo() + ", disciplina=" + salva.getDisciplina(),
-                alunoId, salva.getId());
+        auditar(
+            AuditEvento.SOLICITACAO_CRIADA,
+            "Tipo=" + salva.getTipo() + ", disciplina=" + salva.getDisciplina(),
+            alunoId,
+            salva.getId()
+        );
 
         return salva;
     }
 
     public List<Solicitacao> listarMinhas(UUID alunoId) {
         List<Solicitacao> lista = solicitacaoRepository.findByAlunoId(alunoId);
-        auditar(AuditEvento.SOLICITACAO_LISTADA_MINHAS, "Total=" + lista.size(), alunoId, null);
+
+        auditar(
+            AuditEvento.SOLICITACAO_LISTADA_MINHAS,
+            "Total=" + lista.size(),
+            alunoId,
+            null
+        );
+
         return lista;
     }
 
     public List<Solicitacao> listarTodas() {
         List<Solicitacao> lista = solicitacaoRepository.findAll();
-        auditar(AuditEvento.SOLICITACAO_LISTADA_TODAS, "Total=" + lista.size(), null, null);
+
+        auditar(
+            AuditEvento.SOLICITACAO_LISTADA_TODAS,
+            "Total=" + lista.size(),
+            null,
+            null
+        );
+
         return lista;
     }
 
@@ -73,15 +96,25 @@ public class SolicitacaoService {
 
         s.setStatus(novoStatus);
         s.setUpdatedAt(now);
-        solicitacaoRepository.save(s);
 
-        registrarResposta(s.getId(), autorId, req.getTextoParecer(), novoStatus, now);
+        Solicitacao salva = solicitacaoRepository.save(s);
 
-        auditar(AuditEvento.SOLICITACAO_STATUS_ALTERADO,
-                "De " + statusAnterior + " para " + novoStatus,
-                autorId, s.getId());
+        registrarResposta(
+            salva.getId(),
+            autorId,
+            req.getTextoParecer(),
+            novoStatus,
+            now
+        );
 
-        return s;
+        auditar(
+            AuditEvento.SOLICITACAO_STATUS_ALTERADO,
+            "De " + statusAnterior + " para " + novoStatus,
+            autorId,
+            salva.getId()
+        );
+
+        return salva;
     }
 
     private void validarCriacao(CriarSolicitacaoRequest req, UUID alunoId) {
@@ -89,6 +122,7 @@ public class SolicitacaoService {
             auditar(AuditEvento.SOLICITACAO_CRIAR_FAIL, "Tipo inválido: null", alunoId, null);
             throw badRequest("tipo inválido. Use REVISAO_NOTA ou ABONO_FALTA");
         }
+
         if (req.getDescricao() == null || req.getDescricao().isBlank()) {
             auditar(AuditEvento.SOLICITACAO_CRIAR_FAIL, "Descricao vazia", alunoId, null);
             throw badRequest("descricao é obrigatória");
@@ -97,24 +131,34 @@ public class SolicitacaoService {
 
     private StatusSolicitacao validarDecisao(StatusSolicitacao status, UUID autorId, UUID solicitacaoId) {
         if (status == null || status == StatusSolicitacao.PENDENTE) {
-            auditar(AuditEvento.SOLICITACAO_STATUS_FAIL, "Status inválido: " + status, autorId, solicitacaoId);
+            auditar(
+                AuditEvento.SOLICITACAO_STATUS_FAIL,
+                "Status inválido: " + status,
+                autorId,
+                solicitacaoId
+            );
+
             throw badRequest("status inválido. Use APROVADA ou REPROVADA");
         }
+
         return status;
     }
 
     private Solicitacao buscarPendente(UUID solicitacaoId, UUID autorId) {
-        Solicitacao s = solicitacaoRepository.findById(solicitacaoId)
-                .orElseThrow(() -> {
-                    auditar(AuditEvento.SOLICITACAO_STATUS_FAIL, "Solicitação não encontrada", autorId, solicitacaoId);
-                    return new ResponseStatusException(HttpStatus.NOT_FOUND, "Solicitação não encontrada");
-                });
+        return solicitacaoRepository.findById(solicitacaoId)
+            .orElseThrow(() -> {
+                auditar(
+                    AuditEvento.SOLICITACAO_STATUS_FAIL,
+                    "Solicitação não encontrada",
+                    autorId,
+                    solicitacaoId
+                );
 
-        if (s.getStatus() != StatusSolicitacao.PENDENTE) {
-            auditar(AuditEvento.SOLICITACAO_STATUS_FAIL, "Solicitação já " + s.getStatus(), autorId, s.getId());
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Solicitação já foi " + s.getStatus());
-        }
-        return s;
+                return new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Solicitação não encontrada"
+                );
+            });
     }
 
     private void registrarResposta(UUID solicitacaoId,
@@ -128,16 +172,18 @@ public class SolicitacaoService {
         resposta.setTexto(texto);
         resposta.setDecisao(decisao);
         resposta.setCreatedAt(now);
+
         respostaRepository.save(resposta);
     }
 
     private void auditar(AuditEvento evento, String detalhe, UUID usuarioId, UUID recursoId) {
         auditLogService.registrar(
-                evento,
-                detalhe,
-                usuarioId,
-                recursoId == null ? null : recursoId.toString(),
-                RECURSO_TIPO);
+            evento,
+            detalhe,
+            usuarioId,
+            recursoId == null ? null : recursoId.toString(),
+            RECURSO_TIPO
+        );
     }
 
     private ResponseStatusException badRequest(String mensagem) {
