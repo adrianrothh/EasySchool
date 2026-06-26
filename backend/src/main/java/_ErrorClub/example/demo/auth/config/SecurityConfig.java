@@ -4,7 +4,9 @@ import _ErrorClub.example.demo.auth.filter.JwtAuthenticationFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -37,16 +39,18 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+            .cors(Customizer.withDefaults())
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/health").permitAll()
                 .anyRequest().authenticated()
             )
-            .exceptionHandling(ex -> ex
-                .authenticationEntryPoint((req, res, e) ->
-                    res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token ausente ou inválido"))
-            )
+//            .exceptionHandling(ex -> ex
+//                .authenticationEntryPoint((req, res, e) ->
+//                    res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token ausente ou inválido"))
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

@@ -1,5 +1,7 @@
 package _ErrorClub.example.demo.solicitacao.entity;
 
+import _ErrorClub.example.demo.solicitacao.enums.StatusSolicitacao;
+import _ErrorClub.example.demo.solicitacao.enums.TipoSolicitacao;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -25,9 +27,11 @@ public class Solicitacao {
 
     private LocalDate dataOcorrencia;
 
-    private String tipo;
+    @Enumerated(EnumType.STRING)
+    private TipoSolicitacao tipo;
 
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private StatusSolicitacao status;
 
     private String disciplina;
 
